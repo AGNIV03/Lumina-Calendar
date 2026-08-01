@@ -136,7 +136,7 @@ npm run dist
 
 **Free to use and share, no modifications.**
 
-You may download, install, use, and redistribute unmodified copies of this software free of charge. You may **not** modify the software or distribute modified or derivative versions. See [LICENSE](LICENSE) for the full terms. All rights reserved by the author.
+You may download, install and use unmodified copies of this software free of charge. You may **not** modify, redistribute the software or distribute modified or derivative versions. See [LICENSE](LICENSE) for the full terms. All rights reserved by the author.
 
 ## Bug reports and feedback
 
