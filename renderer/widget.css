@@ -1,0 +1,81 @@
+/* Desktop widget — frosted card over transparent window */
+:root {
+  --accent: #5b7cfa;
+  --card: rgba(248, 249, 253, 0.86);
+  --text: #23273a;
+  --text-2: #6d7288;
+  --line: rgba(30, 34, 60, 0.10);
+  --hover: rgba(30, 34, 60, 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --card: rgba(22, 24, 33, 0.82);
+    --text: #e8eaf2;
+    --text-2: #99a0b6;
+    --line: rgba(255, 255, 255, 0.09);
+    --hover: rgba(255, 255, 255, 0.08);
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: transparent; overflow: hidden; }
+body {
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px; color: var(--text);
+  padding: 8px;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+
+#card {
+  height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 6px 28px rgba(10, 14, 30, 0.28);
+  overflow: hidden;
+}
+
+#w-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 10px;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+#w-day { font-size: 17px; font-weight: 700; }
+#w-date { font-size: 12px; color: var(--text-2); }
+#w-open {
+  -webkit-app-region: no-drag;
+  width: 30px; height: 30px; border-radius: 9px;
+  display: grid; place-items: center; color: var(--text-2); font-size: 15px;
+}
+#w-open:hover { background: var(--hover); color: var(--text); }
+
+#w-body { flex: 1; overflow-y: auto; padding: 0 10px 12px; }
+section h2 {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-2); padding: 10px 8px 4px;
+}
+.w-list { display: flex; flex-direction: column; }
+
+.w-row {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 6px 8px; border-radius: 9px; text-align: left;
+}
+.w-row:hover { background: var(--hover); }
+.w-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--accent)); flex: 0 0 8px; }
+.w-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.w-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; }
+.w-sub { font-size: 11px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-row.past { opacity: .5; }
+.w-row.done .w-title { text-decoration: line-through; color: var(--text-2); }
+.w-check {
+  width: 15px; height: 15px; flex: 0 0 15px;
+  accent-color: var(--accent); cursor: pointer;
+}
+.w-daylabel { font-size: 11px; font-weight: 700; color: var(--text-2); padding: 8px 8px 2px; }
+.w-empty { color: var(--text-2); padding: 4px 8px 8px; font-size: 12px; }
+
+::-webkit-scrollbar { width: 7px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }

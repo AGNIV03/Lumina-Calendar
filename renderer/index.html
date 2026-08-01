@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' https://nominatim.openstreetmap.org;" />
+  <title>Lumina Calendar</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="titlebar">
+    <div class="tb-title">Lumina</div>
+  </div>
+
+  <div id="layout">
+    <aside id="sidebar">
+      <button id="btn-new" class="btn-primary">＋&nbsp; New</button>
+      <div id="calendar-list"></div>
+      <div class="sidebar-footer">
+        <button id="btn-refresh" class="icon-btn" title="Refresh">⟳</button>
+        <button id="btn-settings" class="icon-btn" title="Settings">⚙</button>
+      </div>
+    </aside>
+
+    <main id="main">
+      <header id="toolbar">
+        <button id="btn-today" class="btn-ghost">Today</button>
+        <button id="btn-prev" class="icon-btn" title="Previous">‹</button>
+        <button id="btn-next" class="icon-btn" title="Next">›</button>
+        <h1 id="view-title"></h1>
+        <div id="meet-pills"></div>
+        <div class="spacer"></div>
+        <div id="view-switcher" class="segmented">
+          <button data-view="month" class="active">Month</button>
+          <button data-view="week">Week</button>
+          <button data-view="day">Day</button>
+          <button data-view="agenda">Agenda</button>
+        </div>
+      </header>
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

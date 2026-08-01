@@ -1,0 +1,51 @@
+{
+  "name": "lumina-calendar",
+  "productName": "Lumina Calendar",
+  "version": "0.1.0",
+  "description": "A minimal, translucent desktop calendar for Windows with Google Calendar and Google Tasks",
+  "main": "main/main.js",
+  "author": "Agniv Saha <sahagniv03@gmail.com>",
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "start": "electron .",
+    "make-icon": "node scripts/make-icon.js",
+    "dist": "node scripts/make-icon.js && electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "koffi": "^2.9.2"
+  },
+  "build": {
+    "appId": "eco.regenesis.luminacalendar",
+    "productName": "Lumina Calendar",
+    "directories": {
+      "output": "dist"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "electronVersion": "34.5.8",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Lumina Calendar",
+      "runAfterFinish": true
+    },
+    "files": [
+      "main/**",
+      "renderer/**",
+      "assets/**",
+      "package.json"
+    ]
+  }
+}

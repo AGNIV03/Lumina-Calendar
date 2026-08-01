@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
+  <title>Lumina Widget</title>
+  <link rel="stylesheet" href="widget.css" />
+</head>
+<body>
+  <div id="card">
+    <header id="w-head">
+      <div>
+        <div id="w-day"></div>
+        <div id="w-date"></div>
+      </div>
+      <button id="w-open" title="Open Lumina Calendar">⤢</button>
+    </header>
+    <div id="w-body">
+      <section>
+        <h2>Today</h2>
+        <div id="w-today" class="w-list"></div>
+      </section>
+      <section>
+        <h2>Upcoming</h2>
+        <div id="w-upcoming" class="w-list"></div>
+      </section>
+    </div>
+  </div>
+  <script type="module" src="js/widget.js"></script>
+</body>
+</html>

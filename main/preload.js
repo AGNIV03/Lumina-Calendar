@@ -1,0 +1,30 @@
+'use strict';
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('api', {
+  getState: () => ipcRenderer.invoke('state:get'),
+  setCredentials: (c) => ipcRenderer.invoke('creds:set', c),
+  addAccount: () => ipcRenderer.invoke('account:add'),
+  removeAccount: (email) => ipcRenderer.invoke('account:remove', email),
+  listCalendars: (force) => ipcRenderer.invoke('calendars:list', { force }),
+  setCalendarVisibility: (p) => ipcRenderer.invoke('calendar:visibility', p),
+  setCalendarPriority: (p) => ipcRenderer.invoke('calendar:priority', p),
+  getItems: (p) => ipcRenderer.invoke('items:get', p),
+  createEvent: (p) => ipcRenderer.invoke('event:create', p),
+  updateEvent: (p) => ipcRenderer.invoke('event:update', p),
+  deleteEvent: (p) => ipcRenderer.invoke('event:delete', p),
+  getTaskLists: () => ipcRenderer.invoke('tasklists:get'),
+  createTask: (p) => ipcRenderer.invoke('task:create', p),
+  setTaskCompleted: (p) => ipcRenderer.invoke('task:toggle', p),
+  deleteTask: (p) => ipcRenderer.invoke('task:delete', p),
+  freeBusy: (p) => ipcRenderer.invoke('freebusy:query', p),
+  setLocalPriority: (p) => ipcRenderer.invoke('priority:set-local', p),
+  addContact: (p) => ipcRenderer.invoke('contacts:add', p),
+  removeContact: (email) => ipcRenderer.invoke('contacts:remove', email),
+  setWidgetEnabled: (b) => ipcRenderer.invoke('widget:set-enabled', b),
+  setLaunchAtStartup: (b) => ipcRenderer.invoke('settings:launch-at-startup', b),
+  refreshNow: () => ipcRenderer.invoke('sync:refresh'),
+  openMain: () => ipcRenderer.invoke('app:open-main'),
+  openExternal: (url) => ipcRenderer.invoke('external:open', url),
+  onDataChanged: (cb) => ipcRenderer.on('data-changed', () => cb()),
+});
