@@ -542,29 +542,39 @@ export function openDetails(item) {
       if (isTask) {
         if (!await confirmDialog({ title: `Delete "${name}"?`, message: 'The task is removed from Google Tasks.' })) return;
         await api.deleteTask({ accountEmail: item.accountEmail, tasklistId: item.tasklistId, taskId: item.id });
-      } else if (item.recurringEventId) {
-        const scope = await choiceDialog({
+      } else {
+        const hasGuests = (item.attendees || []).length > 0;
+        const notifyBox = hasGuests
+          ? { label: 'Email a cancellation to guests', checked: true }
+          : undefined;
+        const res = await choiceDialog(item.recurringEventId ? {
           title: `Delete repeating event "${name}"?`,
           message: 'This event repeats. Delete:',
+          checkbox: notifyBox,
           buttons: [
             { label: 'Just this event', value: 'single', kind: 'primary' },
             { label: 'This and following events', value: 'following', kind: 'ghost' },
             { label: 'All events in the series', value: 'all', kind: 'danger' },
           ],
+        } : {
+          title: `Delete "${name}"?`,
+          message: hasGuests ? undefined : 'This removes the event from your calendar.',
+          checkbox: notifyBox,
+          buttons: [{ label: 'Delete', value: 'single', kind: 'danger' }],
         });
+        const scope = hasGuests ? res?.value : res;
         if (!scope) return;
+        const notify = hasGuests ? res.checked : false;
         await api.deleteEvent({
           accountEmail: item.accountEmail,
           calendarId: item.calendarId,
           eventId: item.id,
-          scope,
-          recurringEventId: item.recurringEventId,
+          scope: item.recurringEventId ? scope : undefined,
+          recurringEventId: item.recurringEventId || undefined,
           instanceStart: item.start,
           allDay: item.allDay,
+          sendUpdates: hasGuests ? (notify ? 'all' : 'none') : undefined,
         });
-      } else {
-        if (!await confirmDialog({ title: `Delete "${name}"?`, message: 'Guests are not notified.' })) return;
-        await api.deleteEvent({ accountEmail: item.accountEmail, calendarId: item.calendarId, eventId: item.id });
       }
       toast('Deleted');
       dlg.close();

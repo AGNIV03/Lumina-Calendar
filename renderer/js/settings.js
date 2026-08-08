@@ -16,6 +16,14 @@ export function renderSidebar() {
   const root = document.getElementById('calendar-list');
   root.innerHTML = '';
 
+  if (state.degraded) {
+    const hint = document.createElement('div');
+    hint.className = 'sidebar-hint';
+    hint.textContent = 'Waiting for Windows to unlock your settings… your data is safe.';
+    root.appendChild(hint);
+    return;
+  }
+
   if (!state.accounts.length) {
     const hint = document.createElement('div');
     hint.className = 'sidebar-hint';

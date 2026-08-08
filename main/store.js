@@ -3,6 +3,7 @@
 const { app, safeStorage } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./log');
 
 const DEFAULTS = {
   clientId: '',
@@ -14,6 +15,7 @@ const DEFAULTS = {
   savedContacts: [],   // [{ email, name }] pinned "Meet with" people
   localPriorities: {}, // { "email::calId::eventId": 1-4 } for events Google won't let us tag (birthdays etc.)
   calendarPriorities: {}, // { "email::calId": 2-4 } default priority for every event in a calendar
+  cachedCalendars: [],    // last successfully fetched calendar list (offline fallback)
   launchAtStartup: false,
   weekStart: 1,        // 1 = Monday, 0 = Sunday
 };
@@ -23,20 +25,100 @@ let configPath = null;
 let tokensPath = null;
 let config = null;
 
+// Degraded mode: the config/token files exist but could not be read — on
+// EFS-encrypted profiles this happens when the app auto-starts at login
+// before Windows has loaded the user's encryption keys. While degraded we
+// block every save (so an empty in-memory config can never clobber the real
+// file) and keep retrying the read until it succeeds.
+let configDegraded = false;
+let tokensDegraded = false;
+let onRecoveredFn = null;
+
+function onRecovered(fn) { onRecoveredFn = fn; }
+function isDegraded() { return configDegraded || tokensDegraded; }
+
+function scheduleConfigRetry() {
+  const timer = setInterval(() => {
+    try {
+      const loaded = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      config = { ...DEFAULTS, ...loaded };
+      configDegraded = false;
+      clearInterval(timer);
+      logger.log(`config recovered after startup race: ${config.accounts.length} account(s)`);
+      try { onRecoveredFn?.(); } catch {}
+    } catch { /* keys still not loaded — keep trying */ }
+  }, 5000);
+}
+
 function init() {
   dir = app.getPath('userData');
+  fs.mkdirSync(dir, { recursive: true });
+  logger.init(dir);
   configPath = path.join(dir, 'config.json');
   tokensPath = path.join(dir, 'tokens.dat');
+  let loaded = null;
   try {
-    config = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(configPath, 'utf8')) };
-  } catch {
-    config = { ...DEFAULTS };
+    loaded = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    logger.boot(`config read OK (${JSON.stringify(loaded.accounts?.length)} accounts)`);
+  } catch (e1) {
+    logger.boot(`config read FAILED: code=${e1.code} ${e1.message}`);
+    // main file unreadable — a stranded .tmp from an interrupted save may
+    // hold the newest good copy
+    try {
+      loaded = JSON.parse(fs.readFileSync(`${configPath}.tmp`, 'utf8'));
+      logger.log('config.json unreadable, recovered from config.json.tmp');
+    } catch {
+      let exists = true;
+      try { exists = fs.existsSync(configPath); } catch {}
+      if (exists) {
+        // real data is there but unreadable (EFS keys not loaded yet at
+        // login): run degraded, keep retrying, never save over it
+        configDegraded = true;
+        logger.log('config.json exists but is unreadable — degraded start, retrying:', e1.message);
+        scheduleConfigRetry();
+      }
+    }
+  }
+  config = { ...DEFAULTS, ...(loaded || {}) };
+  logger.log(`store loaded: ${config.accounts.length} account(s), creds=${!!config.clientId}${configDegraded ? ' (DEGRADED)' : ''}`);
+  // clean up stranded temp files from interrupted saves
+  if (!configDegraded) {
+    for (const f of [`${configPath}.tmp`, `${tokensPath}.tmp`]) {
+      try { fs.unlinkSync(f); } catch {}
+    }
   }
 }
 
+// Safest-possible write: temp file + rename when the OS allows it. Some
+// Windows setups (EFS-encrypted profiles) reject even same-folder renames
+// with EXDEV, so fall back to copy+delete, then to a plain direct write.
+// This must never throw for a recoverable reason — a failed save must not
+// take down callers like the token-refresh path.
+function writeFileAtomic(file, data) {
+  const tmp = `${file}.tmp`;
+  try {
+    fs.writeFileSync(tmp, data);
+    fs.renameSync(tmp, file);
+    return;
+  } catch (e) {
+    logger.log(`atomic rename failed for ${path.basename(file)} (${e.code}), using fallback`);
+  }
+  try {
+    fs.copyFileSync(tmp, file);
+    fs.unlinkSync(tmp);
+    return;
+  } catch {}
+  fs.writeFileSync(file, data);
+  try { fs.unlinkSync(tmp); } catch {}
+}
+
 function save() {
+  if (configDegraded) {
+    logger.log('config save SKIPPED: real file is unreadable (degraded start)');
+    return;
+  }
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  writeFileAtomic(configPath, JSON.stringify(config, null, 2));
 }
 
 function get() {
@@ -54,19 +136,34 @@ function loadTokens() {
     const json = safeStorage.isEncryptionAvailable()
       ? safeStorage.decryptString(raw)
       : raw.toString('utf8');
-    return JSON.parse(json);
-  } catch {
+    const parsed = JSON.parse(json);
+    if (tokensDegraded) {
+      tokensDegraded = false;
+      logger.log('tokens recovered after startup race');
+    }
+    return parsed;
+  } catch (e) {
+    let exists = false;
+    try { exists = fs.existsSync(tokensPath); } catch {}
+    if (exists && !tokensDegraded) {
+      tokensDegraded = true;
+      logger.log('tokens.dat exists but is unreadable — degraded, will retry:', e.message);
+    }
     return {};
   }
 }
 
 function saveTokens(all) {
+  if (tokensDegraded) {
+    logger.log('token save SKIPPED: real file is unreadable (degraded start)');
+    return;
+  }
   const json = JSON.stringify(all);
   const data = safeStorage.isEncryptionAvailable()
     ? safeStorage.encryptString(json)
     : Buffer.from(json, 'utf8');
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(tokensPath, data);
+  writeFileAtomic(tokensPath, data);
 }
 
 function getTokens(email) {
@@ -126,6 +223,7 @@ function getCalendarPriority(email, calendarId) {
 
 module.exports = {
   init, get, set,
+  isDegraded, onRecovered,
   getTokens, setTokens, deleteTokens,
   isCalendarVisible, setCalendarVisibility,
   setLocalPriority, getLocalPriority,

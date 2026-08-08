@@ -10,7 +10,9 @@ function base(cls) {
 }
 
 // buttons: [{ label, value, kind: 'primary'|'danger'|'ghost' }]
-export function choiceDialog({ title, message, buttons, showCancel = true }) {
+// checkbox (optional): { label, checked } — when present the promise resolves
+// { value, checked } instead of the bare value.
+export function choiceDialog({ title, message, buttons, showCancel = true, checkbox }) {
   return new Promise((resolve) => {
     const dlg = base('choice');
     let result = null;
@@ -21,18 +23,23 @@ export function choiceDialog({ title, message, buttons, showCancel = true }) {
       <div class="choice-card">
         <h2></h2>
         ${message ? '<p class="muted choice-msg"></p>' : ''}
+        ${checkbox ? `<label class="row check choice-check"><input type="checkbox" ${checkbox.checked ? 'checked' : ''}/><span></span></label>` : ''}
         <div class="choice-btns">${btnsHtml}</div>
         ${showCancel ? '<button class="btn-ghost choice-cancel">Cancel</button>' : ''}
       </div>`;
     dlg.querySelector('h2').textContent = title;
     if (message) dlg.querySelector('.choice-msg').textContent = message;
+    if (checkbox) dlg.querySelector('.choice-check span').textContent = checkbox.label;
     dlg.querySelectorAll('[data-i]').forEach((btn) => {
       btn.textContent = buttons[+btn.dataset.i].label;
       btn.onclick = () => { result = buttons[+btn.dataset.i].value; dlg.close(); };
     });
     dlg.querySelector('.choice-cancel')?.addEventListener('click', () => dlg.close());
     dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
-    dlg.addEventListener('close', () => resolve(result));
+    dlg.addEventListener('close', () => {
+      if (!checkbox) return resolve(result);
+      resolve({ value: result, checked: !!dlg.querySelector('.choice-check input')?.checked });
+    });
     dlg.showModal();
   });
 }

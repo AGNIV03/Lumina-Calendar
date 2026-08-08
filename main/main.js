@@ -8,26 +8,47 @@ const sync = require('./sync');
 const widgets = require('./widgets');
 const demo = require('./demo');
 const { appIcon, trayIcon } = require('./icon');
+const logger = require('./log');
 
 const IS_DEMO = process.argv.includes('--demo');
 const START_HIDDEN = process.argv.includes('--hidden');
 const SMOKE = process.argv.includes('--smoke');
+
+logger.boot(`main start argv=${JSON.stringify(process.argv.slice(1))} cwd=${process.cwd()} exec=${process.execPath} packaged=${app.isPackaged}`);
+
+// A dead stdout/stderr pipe (e.g. the launching terminal closed) must never
+// crash the app: console.log would otherwise throw EPIPE from a timer and
+// Electron pops a "JavaScript error" dialog.
+for (const stream of [process.stdout, process.stderr]) {
+  stream?.on?.('error', () => {});
+}
+process.on('uncaughtException', (err) => {
+  if (err && err.code === 'EPIPE') return;
+  try { logger.log('uncaught exception:', err.stack || String(err)); } catch {}
+});
 
 let mainWin = null;
 let tray = null;
 let quitting = false;
 
 // Demo/smoke runs get an isolated profile and may coexist with the real app.
-if (IS_DEMO || SMOKE) {
+// SMOKE_REAL=1 lets a smoke run capture the real profile (diagnostics).
+if (IS_DEMO || (SMOKE && !process.env.SMOKE_REAL)) {
   app.setPath('userData', path.join(require('os').tmpdir(), 'lumina-demo-data'));
 } else {
   // Same profile in dev and packaged builds, so installing keeps all sign-ins.
   app.setPath('userData', path.join(app.getPath('appData'), 'lumina-calendar'));
 }
+logger.boot(`userData=${app.getPath('userData')}`);
 if (!IS_DEMO && !SMOKE && !app.requestSingleInstanceLock()) {
+  logger.boot('single-instance lock DENIED — another instance is running, quitting');
   app.quit();
 } else {
-  app.on('second-instance', () => showMainWindow());
+  logger.boot('single-instance lock acquired');
+  app.on('second-instance', () => {
+    logger.boot('second-instance signal received — showing existing window');
+    showMainWindow();
+  });
 }
 
 app.setAppUserModelId('eco.regenesis.luminacalendar');
@@ -198,7 +219,7 @@ function handle(channel, fn) {
     try {
       return { ok: true, data: await fn(arg, event) };
     } catch (err) {
-      console.error(`[ipc:${channel}]`, err);
+      logger.log(`[ipc:${channel}] ${err.message || err}`);
       return { ok: false, error: err.message || String(err) };
     }
   });
@@ -209,6 +230,7 @@ function registerIpc() {
     const cfg = store.get();
     return {
       demo: IS_DEMO,
+      degraded: store.isDegraded(),
       hasCredentials: IS_DEMO || (!!cfg.clientId && !!cfg.clientSecret),
       accounts: IS_DEMO ? demo.accounts() : cfg.accounts,
       clientId: cfg.clientId,
@@ -312,10 +334,12 @@ function registerIpc() {
     return contacts;
   });
 
-  // scope: 'single' | 'following' | 'all' (recurring); plain delete otherwise
-  handle('event:delete', async ({ accountEmail, calendarId, eventId, scope, recurringEventId, instanceStart, allDay }) => {
+  // scope: 'single' | 'following' | 'all' (recurring); plain delete otherwise.
+  // sendUpdates: 'all' emails a cancellation to guests, 'none'/omitted stays silent.
+  handle('event:delete', async ({ accountEmail, calendarId, eventId, scope, recurringEventId, instanceStart, allDay, sendUpdates }) => {
+    const opts = sendUpdates ? { sendUpdates } : {};
     if (scope === 'all' && recurringEventId) {
-      await google.deleteEvent(accountEmail, calendarId, recurringEventId);
+      await google.deleteEvent(accountEmail, calendarId, recurringEventId, opts);
     } else if (scope === 'following' && recurringEventId) {
       const master = await google.getEvent(accountEmail, calendarId, recurringEventId);
       const recurrence = (master.recurrence || []).map((r) =>
@@ -323,9 +347,9 @@ function registerIpc() {
       if (!recurrence.some((r) => r.startsWith('RRULE:'))) {
         throw new Error('Could not update the recurrence rule for this series.');
       }
-      await google.patchEvent(accountEmail, calendarId, recurringEventId, { recurrence });
+      await google.patchEvent(accountEmail, calendarId, recurringEventId, { recurrence }, opts);
     } else {
-      await google.deleteEvent(accountEmail, calendarId, eventId);
+      await google.deleteEvent(accountEmail, calendarId, eventId, opts);
     }
     sync.invalidate();
     broadcastDataChanged();
@@ -379,7 +403,15 @@ function registerIpc() {
 }
 
 app.whenReady().then(() => {
+  logger.boot('whenReady fired');
   store.init();
+  logger.boot(`store.init done: accounts=${store.get().accounts.length} degraded=${store.isDegraded()}`);
+  // login-time EFS race: when the real config becomes readable, reload live
+  store.onRecovered(() => {
+    setLaunchAtStartup(store.get().launchAtStartup);
+    if (store.get().widgetEnabled) widgets.createWidget();
+    sync.refreshNow();
+  });
   registerIpc();
   sync.setBroadcast(broadcastDataChanged);
   sync.startTimer();

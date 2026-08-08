@@ -29,6 +29,8 @@ function invalidateCalendars() {
   invalidate();
 }
 
+let calendarsFailed = false;
+
 async function getCalendars(force = false) {
   if (isDemo()) return demo.calendars();
   const cfg = store.get();
@@ -36,12 +38,29 @@ async function getCalendars(force = false) {
     return flattenCalendars();
   }
   const byAccount = new Map();
-  await Promise.allSettled(cfg.accounts.map(async (acct) => {
+  const results = await Promise.allSettled(cfg.accounts.map(async (acct) => {
     const cals = await google.listCalendars(acct.email);
     byAccount.set(acct.email, cals);
   }));
-  if (byAccount.size) calendarsCache = { ts: Date.now(), byAccount };
-  return flattenCalendars();
+  calendarsFailed = results.some((r) => r.status === 'rejected');
+  if (byAccount.size) {
+    calendarsCache = { ts: Date.now(), byAccount };
+    const flat = flattenCalendars();
+    // persist for offline starts (only write when it actually changed);
+    // never let a failed save break the fetch path
+    try {
+      if (JSON.stringify(flat) !== JSON.stringify(store.get().cachedCalendars)) {
+        store.set({ cachedCalendars: flat });
+      }
+    } catch (e) { console.warn('could not persist calendar cache:', e.message); }
+    return flat;
+  }
+  // total failure (offline / Google unreachable): last known list, live visibility
+  return (store.get().cachedCalendars || []).map((c) => ({
+    ...c,
+    visible: store.isCalendarVisible(c.accountEmail, { id: c.id }),
+    priority: store.getCalendarPriority(c.accountEmail, c.id) || 1,
+  }));
 }
 
 function flattenCalendars() {
@@ -230,20 +249,39 @@ async function fetchTasks(force) {
 }
 
 // Main entry: everything the renderer needs for a date range.
+// `errors` is non-empty when Google could not be reached for some data,
+// so the UI can say "retrying" instead of silently looking wiped.
 async function getItems({ start, end, force = false } = {}) {
   if (isDemo()) return demo.items(start, end);
   const cfg = store.get();
-  if (!cfg.accounts.length) return { events: [], tasks: [] };
+  if (store.isDegraded()) {
+    return {
+      events: [], tasks: [],
+      errors: ['Waiting for Windows to unlock your settings (encrypted profile).'],
+    };
+  }
+  if (!cfg.accounts.length) return { events: [], tasks: [], errors: [] };
 
+  const errors = [];
   const calendars = await getCalendars(force);
+  if (calendarsFailed || (cfg.accounts.length && !calendars.length)) {
+    errors.push("Can't reach Google Calendar.");
+  }
   const visible = calendars.filter((c) => c.visible);
   const results = await Promise.allSettled(
     visible.map((c) => fetchCalendarRange(c.accountEmail, c, start, end, force))
   );
   const events = [];
-  for (const r of results) if (r.status === 'fulfilled') events.push(...r.value);
+  let failed = 0;
+  for (const r of results) {
+    if (r.status === 'fulfilled') events.push(...r.value);
+    else failed++;
+  }
+  if (failed && !errors.length) {
+    errors.push(`${failed} calendar${failed > 1 ? 's' : ''} failed to load.`);
+  }
   const tasks = await fetchTasks(force).catch(() => []);
-  return { events, tasks };
+  return { events, tasks, errors };
 }
 
 function startTimer() {

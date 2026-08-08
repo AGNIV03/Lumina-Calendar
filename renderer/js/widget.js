@@ -2,17 +2,25 @@ import { api } from './api.js';
 import * as D from './dates.js';
 import { PRIORITIES, priorityOf, priorityFlag } from './priority.js';
 
+let retryTimer = null;
+
 async function load() {
   const start = D.startOfDay(new Date());
   const end = D.addDays(start, 32); // level-4 events surface a month early
   let items = { events: [], tasks: [] };
+  let offline = false;
   try {
     items = await api.getItems({ start: start.toISOString(), end: end.toISOString() });
-  } catch { /* not signed in yet */ }
-  render(items);
+    offline = !!items.errors?.length;
+  } catch {
+    offline = true;
+  }
+  render(items, offline);
+  clearTimeout(retryTimer);
+  if (offline) retryTimer = setTimeout(load, 15_000);
 }
 
-function render(items) {
+function render(items, offline = false) {
   const now = new Date();
   const today = D.startOfDay(now);
   document.getElementById('w-day').textContent =
@@ -34,7 +42,9 @@ function render(items) {
   todayRoot.innerHTML = '';
   const todayItems = D.sortDayItems(byDay.get(D.dateKey(today)) || []);
   if (!todayItems.length) {
-    todayRoot.innerHTML = '<div class="w-empty">Nothing scheduled — enjoy! ✨</div>';
+    todayRoot.innerHTML = offline
+      ? '<div class="w-empty">Can\'t reach Google — retrying…</div>'
+      : '<div class="w-empty">Nothing scheduled — enjoy! ✨</div>';
   }
   for (const item of todayItems) todayRoot.appendChild(row(item, now));
 

@@ -42,6 +42,20 @@ export function viewRange() {
   return { start, end: D.addDays(start, 30) };
 }
 
+// When Google is unreachable (e.g. right after waking the PC), show a banner
+// and keep retrying instead of silently rendering an empty calendar.
+let retryTimer = null;
+function setSyncBanner(message) {
+  const b = document.getElementById('sync-banner');
+  if (!b) return;
+  b.hidden = !message;
+  if (message) b.textContent = message;
+}
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => loadItems(true), 15_000);
+}
+
 let loadSeq = 0;
 export async function loadItems(force = false) {
   const { start, end } = viewRange();
@@ -56,8 +70,18 @@ export async function loadItems(force = false) {
     ]);
     if (seq !== loadSeq) return; // a newer navigation superseded this load
     state.items = items;
+    if (items.errors?.length) {
+      setSyncBanner(`${items.errors[0]} Your data is safe — retrying automatically…`);
+      scheduleRetry();
+    } else {
+      setSyncBanner(null);
+      clearTimeout(retryTimer);
+    }
   } catch (e) {
-    if (seq === loadSeq) toast(e.message, 'error');
+    if (seq === loadSeq) {
+      setSyncBanner(`Can't reach Google (${e.message}). Retrying automatically…`);
+      scheduleRetry();
+    }
   } finally {
     if (seq === loadSeq) state.loading = false;
   }
@@ -204,6 +228,7 @@ async function refreshState() {
   const s = await api.getState();
   Object.assign(state, {
     demo: s.demo,
+    degraded: s.degraded,
     hasCredentials: s.hasCredentials,
     accounts: s.accounts,
     calendars: s.calendars,
@@ -257,7 +282,9 @@ async function boot() {
   });
   await refreshState();
   render();
-  if (!state.demo && (!state.hasCredentials || !state.accounts.length)) {
+  // don't show onboarding during a degraded start — the real config exists,
+  // Windows just hasn't unlocked it yet
+  if (!state.demo && !state.degraded && (!state.hasCredentials || !state.accounts.length)) {
     openSettings({ onboarding: true });
   }
   await loadItems();

@@ -14,7 +14,9 @@ async function accessToken(email, force = false) {
   }
   const cfg = store.get();
   const fresh = await refreshAccessToken(cfg.clientId, cfg.clientSecret, tok.refresh_token);
-  store.setTokens(email, fresh);
+  // a failed save must never break the API call — the token works in memory
+  try { store.setTokens(email, fresh); }
+  catch (e) { console.warn(`could not persist refreshed token for ${email}:`, e.message); }
   return fresh.access_token;
 }
 
@@ -100,8 +102,11 @@ const freeBusy = (email, timeMin, timeMax, ids) =>
     body: { timeMin, timeMax, items: ids.map((id) => ({ id })) },
   });
 
-const deleteEvent = (email, calendarId, eventId) =>
-  api(email, `${CAL}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
+const deleteEvent = (email, calendarId, eventId, opts = {}) =>
+  api(email, `${CAL}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+    method: 'DELETE',
+    query: { sendUpdates: opts.sendUpdates },
+  });
 
 async function listTaskLists(email) {
   const data = await api(email, `${TASKS}/users/@me/lists`, { query: { maxResults: 100 } });
