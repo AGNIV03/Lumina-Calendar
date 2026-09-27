@@ -13,7 +13,7 @@ async function accessToken(email, force = false) {
     return tok.access_token;
   }
   const cfg = store.get();
-  const fresh = await refreshAccessToken(cfg.clientId, cfg.clientSecret, tok.refresh_token);
+  const fresh = await refreshAccessToken(cfg.clientId, store.getClientSecret(), tok.refresh_token);
   // a failed save must never break the API call — the token works in memory
   try { store.setTokens(email, fresh); }
   catch (e) { console.warn(`could not persist refreshed token for ${email}:`, e.message); }
@@ -95,6 +95,13 @@ const patchEvent = (email, calendarId, eventId, patch, opts = {}) =>
     query: { sendUpdates: opts.sendUpdates, conferenceDataVersion: opts.conferenceDataVersion },
   });
 
+// Move an event to another calendar of the SAME account.
+const moveEvent = (email, calendarId, eventId, destinationId, opts = {}) =>
+  api(email, `${CAL}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}/move`, {
+    method: 'POST',
+    query: { destination: destinationId, sendUpdates: opts.sendUpdates },
+  });
+
 // Free/busy lookup for one or more calendars (e.g. a coworker's email).
 const freeBusy = (email, timeMin, timeMax, ids) =>
   api(email, `${CAL}/freeBusy`, {
@@ -137,6 +144,6 @@ const deleteTask = (email, tasklistId, taskId) =>
 
 module.exports = {
   listCalendars, freeBusy,
-  listEvents, getEvent, insertEvent, patchEvent, deleteEvent,
+  listEvents, getEvent, insertEvent, patchEvent, deleteEvent, moveEvent,
   listTaskLists, listTasks, insertTask, patchTask, deleteTask,
 };

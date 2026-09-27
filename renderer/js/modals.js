@@ -248,7 +248,9 @@ export function openEditor(opts = {}) {
         const isAllDay = f.allday.checked;
         let resource;
         if (isAllDay) {
+          const startD = D.parseWhen(f.sdate.value);
           const endD = D.parseWhen(f.edate.value);
+          if (endD < startD) throw new Error('End must not be before start.');
           resource = {
             summary: f.title.value.trim(),
             location: f.location.value.trim() || undefined,
@@ -267,6 +269,15 @@ export function openEditor(opts = {}) {
             start: { dateTime: s.toISOString() },
             end: { dateTime: en.toISOString() },
           };
+        }
+        // PATCH merges start/end into the existing event, so when switching
+        // between all-day and timed the old field would survive and Google
+        // rejects the event ("Invalid start time"). Null it out explicitly.
+        if (editing) {
+          for (const k of ['start', 'end']) {
+            if (resource[k].date) resource[k].dateTime = null;
+            else resource[k].date = null;
+          }
         }
         // guests: preserve original attendee objects (keeps their RSVPs)
         if (guests.length || editing?.attendees?.length) {
@@ -299,14 +310,30 @@ export function openEditor(opts = {}) {
           opts.conferenceDataVersion = 1;
         }
         if (editing) {
-          await api.updateEvent({
-            accountEmail: editing.accountEmail,
-            calendarId: editing.calendarId,
-            eventId: editing.id,
-            patch: resource,
-            opts,
-          });
-          toast('Event updated');
+          const calChanged = accountEmail !== editing.accountEmail || calendarId !== editing.calendarId;
+          if (calChanged && editing.recurringEventId) {
+            throw new Error("Changing the calendar of a repeating event isn't supported. Delete the series and recreate it instead.");
+          }
+          if (calChanged) {
+            await api.moveEvent({
+              from: { accountEmail: editing.accountEmail, calendarId: editing.calendarId, eventId: editing.id },
+              to: { accountEmail, calendarId },
+              patch: resource,
+              opts,
+            });
+            toast(editing.hangoutLink && accountEmail !== editing.accountEmail
+              ? 'Event moved (the Google Meet link could not be transferred)'
+              : 'Event moved');
+          } else {
+            await api.updateEvent({
+              accountEmail: editing.accountEmail,
+              calendarId: editing.calendarId,
+              eventId: editing.id,
+              patch: resource,
+              opts,
+            });
+            toast('Event updated');
+          }
         } else {
           await api.createEvent({ accountEmail, calendarId, resource, opts });
           toast('Event created');

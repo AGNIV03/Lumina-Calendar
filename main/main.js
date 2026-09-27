@@ -53,11 +53,6 @@ if (!IS_DEMO && !SMOKE && !app.requestSingleInstanceLock()) {
 
 app.setAppUserModelId('eco.regenesis.luminacalendar');
 
-const isWin11 = () => {
-  try { return parseInt(process.getSystemVersion().split('.')[2], 10) >= 22000; }
-  catch { return false; }
-};
-
 function showMainWindow() {
   if (mainWin && !mainWin.isDestroyed()) {
     if (mainWin.isMinimized()) mainWin.restore();
@@ -68,8 +63,9 @@ function showMainWindow() {
   return createMainWindow();
 }
 
+const themeBg = () => (nativeTheme.shouldUseDarkColors ? '#16181f' : '#f2f3f8');
+
 function createMainWindow() {
-  const win11 = isWin11();
   mainWin = new BrowserWindow({
     width: 1180,
     height: 760,
@@ -77,11 +73,10 @@ function createMainWindow() {
     minHeight: 560,
     show: false,
     icon: appIcon(),
-    backgroundColor: win11 ? undefined : (nativeTheme.shouldUseDarkColors ? '#16181f' : '#f5f6fa'),
-    ...(win11 ? { backgroundMaterial: 'acrylic' } : {}),
+    backgroundColor: themeBg(),
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#00000000',
+      color: themeBg(),
       symbolColor: nativeTheme.shouldUseDarkColors ? '#e8eaf2' : '#3a3f52',
       height: 42,
     },
@@ -108,8 +103,9 @@ function createMainWindow() {
   nativeTheme.on('updated', () => {
     if (mainWin && !mainWin.isDestroyed()) {
       try {
+        mainWin.setBackgroundColor(themeBg());
         mainWin.setTitleBarOverlay({
-          color: '#00000000',
+          color: themeBg(),
           symbolColor: nativeTheme.shouldUseDarkColors ? '#e8eaf2' : '#3a3f52',
           height: 42,
         });
@@ -183,11 +179,20 @@ function buildTray() {
 
 function setLaunchAtStartup(enabled) {
   store.set({ launchAtStartup: !!enabled });
-  if (!app.isPackaged) return; // avoid registering the dev electron.exe
+  applyLoginItem();
+}
+
+// Re-asserted on every startup so the registry entry always matches the
+// saved setting (it can be lost to system cleanups or virtualized writes).
+function applyLoginItem() {
+  if (!app.isPackaged || IS_DEMO || SMOKE) return; // never register dev/demo runs
+  const enabled = !!store.get().launchAtStartup;
   app.setLoginItemSettings({
-    openAtLogin: !!enabled,
+    openAtLogin: enabled,
     args: ['--hidden'],
   });
+  const actual = app.getLoginItemSettings({ args: ['--hidden'] });
+  logger.boot(`login item asserted: want=${enabled} registered=${actual.openAtLogin}`);
 }
 
 function broadcastDataChanged() {
@@ -231,7 +236,7 @@ function registerIpc() {
     return {
       demo: IS_DEMO,
       degraded: store.isDegraded(),
-      hasCredentials: IS_DEMO || (!!cfg.clientId && !!cfg.clientSecret),
+      hasCredentials: IS_DEMO || (!!cfg.clientId && !!store.getClientSecret()),
       accounts: IS_DEMO ? demo.accounts() : cfg.accounts,
       clientId: cfg.clientId,
       widgetEnabled: cfg.widgetEnabled,
@@ -243,19 +248,20 @@ function registerIpc() {
   });
 
   handle('creds:set', ({ clientId, clientSecret }) => {
-    const patch = { clientId: (clientId || '').trim() };
-    // leaving the secret blank keeps the previously saved one
-    if (clientSecret) patch.clientSecret = clientSecret.trim();
-    store.set(patch);
+    store.set({ clientId: (clientId || '').trim() });
+    // leaving the secret blank keeps the previously saved one; when provided it
+    // goes straight into encrypted storage, never touching config.json
+    if (clientSecret) store.setClientSecret(clientSecret.trim());
     return true;
   });
 
   handle('account:add', async () => {
     const cfg = store.get();
-    if (!cfg.clientId || !cfg.clientSecret) {
+    const clientSecret = store.getClientSecret();
+    if (!cfg.clientId || !clientSecret) {
       throw new Error('Add your Google OAuth Client ID and Secret in Settings first.');
     }
-    const result = await oauth.authorize(cfg.clientId, cfg.clientSecret);
+    const result = await oauth.authorize(cfg.clientId, clientSecret);
     const { email, name, picture, ...tokens } = result;
     store.setTokens(email, tokens);
     const accounts = cfg.accounts.filter((a) => a.email !== email);
@@ -303,6 +309,26 @@ function registerIpc() {
     sync.invalidate();
     broadcastDataChanged();
     return updated;
+  });
+
+  // Save edits AND move the event to another calendar. Same account uses
+  // Google's native move; another account has no move API, so it's a
+  // create-copy-then-delete.
+  handle('event:move', async ({ from, to, patch, opts }) => {
+    const o = opts || {};
+    if (from.accountEmail === to.accountEmail) {
+      await google.patchEvent(from.accountEmail, from.calendarId, from.eventId, patch, o);
+      await google.moveEvent(from.accountEmail, from.calendarId, from.eventId, to.calendarId, o);
+    } else {
+      // strip the explicit nulls the editor adds for PATCH semantics —
+      // they're invalid on an insert
+      const resource = JSON.parse(JSON.stringify(patch, (k, v) => (v === null ? undefined : v)));
+      await google.insertEvent(to.accountEmail, to.calendarId, resource, o);
+      await google.deleteEvent(from.accountEmail, from.calendarId, from.eventId, {});
+    }
+    sync.invalidate();
+    broadcastDataChanged();
+    return true;
   });
 
   handle('freebusy:query', (p) => sync.meetWithSchedule(p));
@@ -406,9 +432,10 @@ app.whenReady().then(() => {
   logger.boot('whenReady fired');
   store.init();
   logger.boot(`store.init done: accounts=${store.get().accounts.length} degraded=${store.isDegraded()}`);
+  if (!store.isDegraded()) applyLoginItem();
   // login-time EFS race: when the real config becomes readable, reload live
   store.onRecovered(() => {
-    setLaunchAtStartup(store.get().launchAtStartup);
+    applyLoginItem();
     if (store.get().widgetEnabled) widgets.createWidget();
     sync.refreshNow();
   });

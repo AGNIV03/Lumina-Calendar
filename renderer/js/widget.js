@@ -98,6 +98,7 @@ function row(item, now) {
     const s = D.parseWhen(item.start);
     const e = D.parseWhen(item.end);
     if (!item.allDay && e < now) r.classList.add('past');
+    if (item.declined) r.classList.add('declined');
     const dot = document.createElement('span');
     dot.className = 'w-dot';
     dot.style.setProperty('--c', item.color);

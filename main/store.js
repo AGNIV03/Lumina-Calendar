@@ -7,7 +7,7 @@ const logger = require('./log');
 
 const DEFAULTS = {
   clientId: '',
-  clientSecret: '',
+  clientSecret: '', // legacy plaintext location — migrated into encrypted tokens.dat on startup, never saved back
   accounts: [],        // [{ email, name, picture }]
   visibility: {},      // { "email::calendarId": bool } overrides
   widgetEnabled: true,
@@ -81,6 +81,8 @@ function init() {
   }
   config = { ...DEFAULTS, ...(loaded || {}) };
   logger.log(`store loaded: ${config.accounts.length} account(s), creds=${!!config.clientId}${configDegraded ? ' (DEGRADED)' : ''}`);
+  // move any plaintext secret into encrypted storage as early as safely possible
+  migrateSecretIfNeeded();
   // clean up stranded temp files from interrupted saves
   if (!configDegraded) {
     for (const f of [`${configPath}.tmp`, `${tokensPath}.tmp`]) {
@@ -118,7 +120,11 @@ function save() {
     return;
   }
   fs.mkdirSync(dir, { recursive: true });
-  writeFileAtomic(configPath, JSON.stringify(config, null, 2));
+  // once migrated, the secret lives encrypted in tokens.dat — drop the empty
+  // legacy field; until migration succeeds keep it so it can't be lost
+  const out = { ...config };
+  if (!out.clientSecret) delete out.clientSecret;
+  writeFileAtomic(configPath, JSON.stringify(out, null, 2));
 }
 
 function get() {
@@ -164,6 +170,39 @@ function saveTokens(all) {
     : Buffer.from(json, 'utf8');
   fs.mkdirSync(dir, { recursive: true });
   writeFileAtomic(tokensPath, data);
+}
+
+// The OAuth client secret is stored under a reserved key inside the encrypted
+// tokens.dat ("__credentials" can never collide with an account email).
+const CREDS_KEY = '__credentials';
+
+function getClientSecret() {
+  migrateSecretIfNeeded();
+  // legacy fallback: config still holds the plaintext secret until migration succeeds
+  if (config.clientSecret) return config.clientSecret;
+  return (loadTokens()[CREDS_KEY] || {}).clientSecret || '';
+}
+
+function setClientSecret(secret) {
+  const all = loadTokens();
+  all[CREDS_KEY] = { ...(all[CREDS_KEY] || {}), clientSecret: secret };
+  saveTokens(all);
+}
+
+// One-time move of a plaintext secret out of config.json. Only runs when the
+// encrypted store is actually usable — never during a degraded start, and
+// never when safeStorage would fall back to writing plaintext.
+function migrateSecretIfNeeded() {
+  if (!config.clientSecret || configDegraded || tokensDegraded) return;
+  if (!safeStorage.isEncryptionAvailable()) return;
+  try {
+    setClientSecret(config.clientSecret);
+    config.clientSecret = '';
+    save();
+    logger.log('client secret migrated from plaintext config.json into encrypted tokens.dat');
+  } catch (e) {
+    logger.log('client secret migration failed (will retry on next use):', e.message);
+  }
 }
 
 function getTokens(email) {
@@ -224,6 +263,7 @@ function getCalendarPriority(email, calendarId) {
 module.exports = {
   init, get, set,
   isDegraded, onRecovered,
+  getClientSecret, setClientSecret,
   getTokens, setTokens, deleteTokens,
   isCalendarVisible, setCalendarVisibility,
   setLocalPriority, getLocalPriority,

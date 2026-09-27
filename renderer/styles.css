@@ -1,16 +1,16 @@
-/* Lumina Calendar — minimal, translucent, theme-aware */
+/* Lumina Calendar — minimal, solid colors, theme-aware */
 :root {
   color-scheme: light;
   --menu: #ffffff;
   --accent: #5b7cfa;
-  --accent-soft: rgba(91, 124, 250, 0.14);
-  --bg: rgba(245, 246, 250, 0.72);
-  --surface: rgba(255, 255, 255, 0.55);
-  --surface-2: rgba(255, 255, 255, 0.78);
+  --accent-soft: #e6ebfe;
+  --bg: #f2f3f8;
+  --surface: #fbfbfd;
+  --surface-2: #ffffff;
   --text: #23273a;
   --text-2: #6b7188;
-  --line: rgba(30, 34, 60, 0.10);
-  --hover: rgba(30, 34, 60, 0.06);
+  --line: #e2e4ed;
+  --hover: #eaecf3;
   --danger: #d5544a;
   --shadow: 0 8px 32px rgba(20, 24, 48, 0.18);
 }
@@ -18,13 +18,14 @@
   :root {
     color-scheme: dark;
     --menu: #23263a;
-    --bg: rgba(18, 20, 28, 0.62);
-    --surface: rgba(255, 255, 255, 0.055);
-    --surface-2: rgba(38, 42, 58, 0.92);
+    --accent-soft: #232a44;
+    --bg: #16181f;
+    --surface: #1d2029;
+    --surface-2: #262a38;
     --text: #e8eaf2;
     --text-2: #9aa0b4;
-    --line: rgba(255, 255, 255, 0.09);
-    --hover: rgba(255, 255, 255, 0.07);
+    --line: #2b2f3d;
+    --hover: #252938;
     --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
   }
 }
@@ -33,13 +34,13 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  background: transparent;
+  background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   font-size: 13.5px;
   -webkit-font-smoothing: antialiased;
 }
-body { display: flex; flex-direction: column; background: var(--bg); }
+body { display: flex; flex-direction: column; }
 
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
@@ -176,29 +177,75 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .month-head div { text-align: center; font-size: 11.5px; font-weight: 600; color: var(--text-2); }
 .month-grid {
-  flex: 1; display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(6, 1fr);
+  flex: 1; display: flex; flex-direction: column;
   min-height: 0;
 }
-.month-cell {
-  border-right: 1px solid var(--line);
+.month-week {
+  flex: 1; position: relative;
+  display: flex; flex-direction: column;
   border-bottom: 1px solid var(--line);
-  padding: 4px;
-  display: flex; flex-direction: column; gap: 2px;
-  overflow: hidden;
-  min-height: 0;
+  min-height: 0; overflow: hidden;
 }
-.month-cell:nth-child(7n) { border-right: none; }
-.month-cell.other .day-num { color: var(--text-2); opacity: .55; }
+.month-week:last-child { border-bottom: none; }
+.week-bg {
+  position: absolute; inset: 0;
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  pointer-events: none;
+}
+.week-bg div { border-right: 1px solid var(--line); }
+.week-bg div:last-child { border-right: none; }
+.week-head {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  position: relative;
+}
+.wh-cell { display: flex; padding: 3px 0 1px 4px; }
+.wh-cell.other .day-num { color: var(--text-2); opacity: .55; }
+.wh-cell.today .day-num { background: var(--accent); color: #fff; }
 .day-num {
-  align-self: flex-start;
   min-width: 24px; height: 24px; padding: 0 6px;
   border-radius: 12px; font-size: 12px; font-weight: 600;
   display: grid; place-items: center;
 }
 .day-num:hover { background: var(--hover); }
-.month-cell.today .day-num { background: var(--accent); color: #fff; }
+.week-spans { position: relative; margin: 1px 0; }
+.span-bar {
+  position: absolute; height: 18px;
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 7px; font-size: 11.5px; font-weight: 500;
+  background: var(--c, var(--accent));
+  overflow: hidden; white-space: nowrap; text-align: left;
+  z-index: 1;
+}
+.span-bar.rl { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+.span-bar.rr { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+.span-bar:hover { filter: brightness(1.1); }
+.span-bar .sb-title { overflow: hidden; text-overflow: ellipsis; }
+.span-bar.overlay {
+  background: color-mix(in srgb, var(--c, var(--accent)) 14%, transparent);
+  border: 1.5px dashed var(--c, var(--accent));
+  color: var(--text);
+}
+.week-cells {
+  flex: 1; display: grid; grid-template-columns: repeat(7, 1fr);
+  min-height: 0; position: relative;
+}
+.week-cells .month-cell {
+  padding: 1px 4px 4px;
+  display: flex; flex-direction: column; gap: 2px;
+  overflow: hidden; min-height: 0;
+}
+
+/* declined (your RSVP is "No"): crossed out and faded, like Google */
+.chip.declined .chip-title,
+.span-bar.declined .sb-title,
+.agenda-row.declined .a-title,
+.tg-event.declined .tge-title { text-decoration: line-through; }
+.chip.declined, .agenda-row.declined { opacity: .6; }
+.tg-event.declined { opacity: .55; }
+.chip.allday.declined, .span-bar.declined {
+  background: color-mix(in srgb, var(--c, var(--accent)) 22%, transparent);
+  color: var(--text-2);
+}
 
 .chip {
   display: flex; align-items: center; gap: 5px;
@@ -227,7 +274,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .tg-day-label .num { font-size: 17px; font-weight: 600; }
 .tg-day-head.today .num { color: var(--accent); }
 .tg-allday { display: flex; border-bottom: 1px solid var(--line); }
-.tg-allday-cell { flex: 1; padding: 3px 4px; display: flex; flex-direction: column; gap: 2px; min-width: 0; border-left: 1px solid var(--line); }
+.tg-ad-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 3px 0; }
+.tg-ad-spans { position: relative; }
+.tg-ad-spans .span-bar { height: 20px; }
+.tg-ad-cells { display: flex; }
+.tg-allday-cell { flex: 1; padding: 0 4px; display: flex; flex-direction: column; gap: 2px; min-width: 0; border-left: 1px solid var(--line); }
 .tg-body { flex: 1; overflow-y: auto; display: flex; position: relative; }
 .tg-gutter { width: 54px; flex: 0 0 54px; position: relative; height: 1248px; }
 .tg-hour {
@@ -294,12 +345,11 @@ button.agenda-day-head:hover { color: var(--accent); }
 /* ---------- dialogs ---------- */
 dialog {
   margin: auto;
-  border: none; border-radius: 16px; padding: 0;
+  border: 1px solid var(--line); border-radius: 16px; padding: 0;
   background: var(--surface-2);
   color: var(--text);
   box-shadow: var(--shadow);
   width: min(480px, 92vw);
-  backdrop-filter: blur(24px);
 }
 dialog::backdrop { background: rgba(10, 12, 20, 0.35); }
 dialog.settings { width: min(560px, 94vw); max-height: 86vh; overflow-y: auto; }

@@ -2,7 +2,7 @@
   "name": "lumina-calendar",
   "productName": "Lumina Calendar",
   "version": "0.1.0",
-  "description": "A minimal, translucent desktop calendar for Windows with Google Calendar and Google Tasks",
+  "description": "A minimal desktop calendar for Windows with Google Calendar and Google Tasks",
   "main": "main/main.js",
   "author": "Agniv Saha <sahagniv03@gmail.com>",
   "license": "SEE LICENSE IN LICENSE",

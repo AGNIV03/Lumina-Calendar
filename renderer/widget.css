@@ -1,19 +1,20 @@
-/* Desktop widget — frosted card over transparent window */
+/* Desktop widget — solid card (the window is transparent only so the
+   rounded corners cut out cleanly on the desktop) */
 :root {
   --accent: #5b7cfa;
-  --card: rgba(248, 249, 253, 0.86);
+  --card: #f8f9fd;
   --text: #23273a;
   --text-2: #6d7288;
-  --line: rgba(30, 34, 60, 0.10);
-  --hover: rgba(30, 34, 60, 0.06);
+  --line: #e2e4ed;
+  --hover: #eaecf3;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --card: rgba(22, 24, 33, 0.82);
+    --card: #191c26;
     --text: #e8eaf2;
     --text-2: #99a0b6;
-    --line: rgba(255, 255, 255, 0.09);
-    --hover: rgba(255, 255, 255, 0.08);
+    --line: #2b2f3d;
+    --hover: #252938;
   }
 }
 
@@ -69,7 +70,8 @@ section h2 {
 .w-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; }
 .w-sub { font-size: 11px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .w-row.past { opacity: .5; }
-.w-row.done .w-title { text-decoration: line-through; color: var(--text-2); }
+.w-row.done .w-title, .w-row.declined .w-title { text-decoration: line-through; color: var(--text-2); }
+.w-row.declined { opacity: .65; }
 .w-check {
   width: 15px; height: 15px; flex: 0 0 15px;
   accent-color: var(--accent); cursor: pointer;

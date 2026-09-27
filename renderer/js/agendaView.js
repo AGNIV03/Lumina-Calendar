@@ -69,6 +69,7 @@ function row(item, ctx) {
     r.querySelector('.a-sub').textContent = item.tasklistTitle || 'Task';
   } else {
     r.style.setProperty('--c', item.color);
+    if (item.declined) r.classList.add('declined');
     const time = item.allDay
       ? 'All day'
       : `${D.fmtTime(D.parseWhen(item.start))} – ${D.fmtTime(D.parseWhen(item.end))}`;

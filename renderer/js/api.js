@@ -17,6 +17,7 @@ export const api = {
   getItems: (p) => call('getItems', p),
   createEvent: (p) => call('createEvent', p),
   updateEvent: (p) => call('updateEvent', p),
+  moveEvent: (p) => call('moveEvent', p),
   deleteEvent: (p) => call('deleteEvent', p),
   getTaskLists: () => call('getTaskLists'),
   createTask: (p) => call('createTask', p),

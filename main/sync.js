@@ -125,6 +125,7 @@ function normalizeEvent(email, cal, ev) {
     hangoutLink: video,
     organizer: ev.organizer ? { email: ev.organizer.email, name: ev.organizer.displayName || '' } : null,
     attendees,
+    declined: attendees.some((a) => a.self && a.responseStatus === 'declined'),
   };
 }
 

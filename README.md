@@ -2,7 +2,7 @@
 
 # Lumina Calendar
 
-**A minimal, translucent desktop calendar for Windows with multi-account Google Calendar and Google Tasks support, priority-driven desktop widgets, and coworker schedule overlays.**
+**A minimal desktop calendar for Windows with multi-account Google Calendar and Google Tasks support, priority-driven desktop widgets, and coworker schedule overlays.**
 
 ![Month view](docs/month.png)
 
@@ -15,7 +15,7 @@
 ### 📅 All your Google calendars in one place
 - Sign in with **multiple Google accounts** and see every calendar together in one view.
 - Check or uncheck any calendar in the sidebar to show or hide it instantly.
-- Month, Week, Day, and Agenda views with Windows 11 acrylic transparency, following your light or dark theme.
+- Month, Week, Day, and Agenda views in a clean solid design, following your light or dark theme.
 - Instant navigation: events are cached in month buckets, so flipping between months and views feels immediate.
 - Auto-refreshes every 5 minutes, with manual refresh a click away.
 
@@ -57,7 +57,7 @@ Mark any event on a scale of 4, each with its own colored flag:
 ![Meet with overlay](docs/week-meetwith.png)
 
 ### 🖥️ Desktop widget
-- A frosted, frameless card that lives **on your desktop, always below other windows**. It never covers your apps.
+- A frameless rounded card that lives **on your desktop, always below other windows**. It never covers your apps.
 - Shows today's agenda plus upcoming events based on their priority, with live task checkboxes.
 - Drag it anywhere; the position is remembered. It stays fresh even when the main window is closed.
 
@@ -109,7 +109,7 @@ npm run dist
 
 | | |
 |---|---|
-| Platform | Windows 10 / 11 (acrylic effects on Windows 11) |
+| Platform | Windows 10 / 11 |
 | Framework | Electron 34, vanilla ES modules, no UI framework |
 | Installer size | ~83 MB (NSIS, per-user install) |
 | Memory footprint | ~50 MB working set at idle |

@@ -44,6 +44,7 @@ function items() {
     hangoutLink: extra.meet || '',
     organizer: extra.organizer || null,
     attendees: extra.attendees || [],
+    declined: !!extra.declined,
     priority: extra.priority || 1,
     recurringEventId: extra.recurring ? `${id}_master` : null,
   });
@@ -71,7 +72,14 @@ function items() {
     ev(w, 'e10', '1:1 with lead', at(-1, 15), at(-1, 15, 30)),
     ev(p, 'e11', 'Dentist', at(8, 9), at(8, 9, 45), { priority: 3 }),
     ev(w, 'e12', 'Team standup', at(0, 9, 0), at(0, 9, 15), { recurring: true }),
-    ev(p, 'e13', 'Weekend trip planning', at(4, 17), at(4, 18)),
+    ev(p, 'e13', 'Weekend trip planning', at(4, 17), at(4, 18), {
+      declined: true,
+      attendees: [
+        { email: 'demo@example.com', displayName: 'Demo Account', responseStatus: 'declined', self: true, organizer: false, optional: false },
+        { email: 'ria@example.com', displayName: 'Ria', responseStatus: 'accepted', self: false, organizer: true, optional: false },
+      ],
+    }),
+    ev(w, 'e15', 'Design Conference', dayISO(9), dayISO(15), { allDay: true, location: 'Vancouver', priority: 3 }),
   ];
   const tasks = [
     { kind: 'task', accountEmail: 'demo@example.com', tasklistId: 'list1', tasklistTitle: 'My Tasks', id: 't1', title: 'Pay electricity bill', notes: '', due: dayISO(0), completed: false },

@@ -33,18 +33,63 @@ export function renderTimeGrid(root, ctx, numDays) {
   }
   wrap.appendChild(header);
 
-  // all-day / tasks row
-  const byDayAll = bucketAllDay(state, days, allEvents);
-  if ([...byDayAll.values()].some((v) => v.length)) {
+  // all-day / tasks row: multi-day events span as one bar, singles as chips
+  const weekKeys = days.map(D.dateKey);
+  const adSpans = [];
+  const singles = new Map(days.map((d) => [D.dateKey(d), []]));
+  for (const ev of allEvents.filter((e) => e.allDay)) {
+    const keys = D.itemDayKeys(ev);
+    if (keys.length > 1) adSpans.push({ item: ev, keys });
+    else if (singles.has(keys[0])) singles.get(keys[0]).push(ev);
+  }
+  for (const t of state.items.tasks.filter((x) => x.due)) {
+    if (singles.has(t.due)) singles.get(t.due).push(t);
+  }
+
+  const segs = [];
+  for (const sp of adSpans) {
+    const idxs = [];
+    for (const k of sp.keys) {
+      const i = weekKeys.indexOf(k);
+      if (i >= 0) idxs.push(i);
+    }
+    if (!idxs.length) continue;
+    const c0 = Math.min(...idxs), c1 = Math.max(...idxs);
+    segs.push({
+      item: sp.item, c0, c1,
+      startsHere: sp.keys[0] === weekKeys[c0],
+      endsHere: sp.keys[sp.keys.length - 1] === weekKeys[c1],
+    });
+  }
+  segs.sort((a, b) => a.c0 - b.c0 || (b.c1 - b.c0) - (a.c1 - a.c0));
+  const laneEnds = [];
+  for (const s of segs) {
+    let lane = laneEnds.findIndex((end) => end < s.c0);
+    if (lane < 0) { lane = laneEnds.length; laneEnds.push(-1); }
+    laneEnds[lane] = s.c1;
+    s.lane = lane;
+  }
+
+  if (segs.length || [...singles.values()].some((v) => v.length)) {
     const adRow = el('div', 'tg-allday');
     adRow.appendChild(el('div', 'tg-gutter-head'));
+    const adWrap = el('div', 'tg-ad-wrap');
+    if (laneEnds.length) {
+      const spansEl = el('div', 'tg-ad-spans');
+      spansEl.style.height = `${laneEnds.length * 22}px`;
+      for (const s of segs) spansEl.appendChild(adSpanBar(s, numDays, ctx));
+      adWrap.appendChild(spansEl);
+    }
+    const cellsRow = el('div', 'tg-ad-cells');
     for (const d of days) {
       const cell = el('div', 'tg-allday-cell');
-      for (const item of byDayAll.get(D.dateKey(d)) || []) {
+      for (const item of D.sortDayItems(singles.get(D.dateKey(d)) || [])) {
         cell.appendChild(alldayChip(item, ctx));
       }
-      adRow.appendChild(cell);
+      cellsRow.appendChild(cell);
     }
+    adWrap.appendChild(cellsRow);
+    adRow.appendChild(adWrap);
     wrap.appendChild(adRow);
   }
 
@@ -123,24 +168,39 @@ function el(tag, cls) {
   return x;
 }
 
-function bucketAllDay(state, days, allEvents) {
-  const byDay = new Map(days.map((d) => [D.dateKey(d), []]));
-  const items = [
-    ...allEvents.filter((e) => e.allDay),
-    ...state.items.tasks.filter((t) => t.due),
-  ];
-  for (const item of D.sortDayItems(items)) {
-    for (const key of D.itemDayKeys(item)) {
-      if (byDay.has(key)) byDay.get(key).push(item);
-    }
-  }
-  return byDay;
+function adSpanBar(seg, numDays, ctx) {
+  const b = document.createElement('button');
+  b.className = 'span-bar';
+  const { item } = seg;
+  b.style.setProperty('--c', item.color);
+  if (item.overlay) b.classList.add('overlay');
+  else b.style.color = textOn(item.color);
+  if (item.declined) b.classList.add('declined');
+  if (seg.startsHere) b.classList.add('rl');
+  if (seg.endsHere) b.classList.add('rr');
+  const leftPct = (seg.c0 * 100) / numDays;
+  const widthPct = ((seg.c1 - seg.c0 + 1) * 100) / numDays;
+  const lp = seg.startsHere ? 3 : 0;
+  const rp = seg.endsHere ? 3 : 0;
+  b.style.left = `calc(${leftPct}% + ${lp}px)`;
+  b.style.width = `calc(${widthPct}% - ${lp + rp}px)`;
+  b.style.top = `${seg.lane * 22}px`;
+  const flag = priorityFlag(item);
+  if (flag) b.appendChild(flag);
+  const title = document.createElement('span');
+  title.className = 'sb-title';
+  title.textContent = item.summary;
+  b.appendChild(title);
+  b.title = item.summary;
+  b.onclick = (e) => { e.stopPropagation(); ctx.onItemClick(item, b); };
+  return b;
 }
 
 function alldayChip(item, ctx) {
   const c = document.createElement('button');
   c.className = 'chip allday';
   if (item.overlay) c.classList.add('overlay');
+  if (item.declined) c.classList.add('declined');
   if (item.kind === 'task') {
     c.classList.add('task');
     if (item.completed) c.classList.add('done');
@@ -221,6 +281,7 @@ function eventBlock(seg, ctx) {
   b.style.setProperty('--c', item.color);
   if (item.overlay) b.classList.add('overlay');
   else b.style.color = textOn(item.color);
+  if (item.declined) b.classList.add('declined');
   const heightPx = (seg.endMin - seg.startMin) * (HOUR_PX / 60) - 2;
   b.style.top = `${seg.startMin * (HOUR_PX / 60)}px`;
   b.style.height = `${heightPx}px`;
